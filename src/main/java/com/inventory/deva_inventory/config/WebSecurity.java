@@ -5,24 +5,19 @@
 package com.inventory.deva_inventory.config;
 
 import com.inventory.deva_inventory.filter.CustomAuthenticationFilter;
-//import com.inventory.deva_inventory.filter.CustomAuthorizationFilter;
 import java.util.Arrays;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import static org.springframework.http.HttpMethod.GET;
-import static org.springframework.http.HttpMethod.POST;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
+import org.springframework.security.authentication.ProviderManager;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.UserDetailsService;
-
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -33,49 +28,37 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
  */
 @Configuration
 @EnableWebSecurity
-public class WebSecurity extends WebSecurityConfigurerAdapter {
+public class WebSecurity {
 
-    @Autowired
-    @Qualifier("userDetailService")
-    private UserDetailsService onUserDetailsService;
+    private final UserDetailsService onUserDetailsService;
+    private final PasswordEncoder encoder;
 
-    @Autowired
-    private PasswordEncoder encoder;
-
-    @Override
-    protected void configure(AuthenticationManagerBuilder auth) throws Exception {
-
-        auth.userDetailsService(onUserDetailsService).passwordEncoder(encoder);
-
-    }
-
-    @Override
-    protected void configure(HttpSecurity http) throws Exception {
-        CustomAuthenticationFilter customAuthentication = new CustomAuthenticationFilter(authenticationManagerBean());
-        customAuthentication.setFilterProcessesUrl("/api/login");
-        http.cors()
-                .configurationSource(corsConfigurationSource()).and().csrf().disable();
-        http.sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS);
-//            http.authorizeRequests().antMatchers("/api/login/**","/api/roles/***").permitAll();
-//            http.authorizeRequests().antMatchers(GET,"/api/courses/**").permitAll();
-//            http.authorizeRequests().antMatchers("/api/checktoken/**").permitAll();
-//             http.authorizeRequests().antMatchers(GET,"/api/categories/**").permitAll();
-//            http.authorizeRequests().antMatchers(GET,"/api/users/**").hasAnyAuthority("Admin");
-//            http.authorizeRequests().antMatchers(GET,"/api/requests/**").hasAnyAuthority("Admin");
-//       http.authorizeRequests().antMatchers(GET,"/api/your/courses/**").hasAnyAuthority("Teacher");
-//       http.authorizeRequests().antMatchers(GET,"/api/course/requests/**").hasAnyAuthority("Admin");
-
-//     http.authorizeRequests().antMatchers(POST,"/api/requests/approve/**").hasAnyAuthority("Admin");
-//               http.authorizeRequests().antMatchers(POST,"/api/users/**").hasAnyAuthority("ADMIN");
-        http.authorizeRequests().anyRequest().permitAll();
-        http.addFilter(customAuthentication);
-//           http.addFilterBefore(new CustomAuthorizationFilter(), UsernamePasswordAuthenticationFilter.class);
+    public WebSecurity(@Qualifier("userDetailService") UserDetailsService onUserDetailsService,
+            PasswordEncoder encoder) {
+        this.onUserDetailsService = onUserDetailsService;
+        this.encoder = encoder;
     }
 
     @Bean
-    @Override
-    public AuthenticationManager authenticationManagerBean() throws Exception {
-        return super.authenticationManagerBean();
+    AuthenticationManager authenticationManager() {
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+        provider.setUserDetailsService(onUserDetailsService);
+        provider.setPasswordEncoder(encoder);
+        return new ProviderManager(provider);
+    }
+
+    @Bean
+    SecurityFilterChain securityFilterChain(HttpSecurity http, AuthenticationManager authenticationManager) throws Exception {
+        CustomAuthenticationFilter customAuthentication = new CustomAuthenticationFilter(authenticationManager);
+        customAuthentication.setFilterProcessesUrl("/api/login");
+
+        http.cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .csrf(csrf -> csrf.disable())
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(requests -> requests.anyRequest().permitAll())
+                .addFilter(customAuthentication);
+
+        return http.build();
     }
 
     @Bean
@@ -83,7 +66,6 @@ public class WebSecurity extends WebSecurityConfigurerAdapter {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowCredentials(true);
         configuration.addAllowedOriginPattern("*");
-//      configuration.setAllowedOrigins(Arrays.asList("*"));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "OPTIONS", "DELETE", "PUT", "PATCH"));
         configuration.setAllowedHeaders(Arrays.asList("X-Requested-With", "Origin", "Content-Type", "Accept", "Authorization"));
         configuration.setAllowCredentials(true);

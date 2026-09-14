@@ -36,9 +36,9 @@ To get the copy of this project in your computer,clone this repository or just d
 
 ### Prerequisites
 
-- Java Installed
+- Java 21 (LTS) installed
+- Maven installed
 - Mysql installed
-- Java 8
 
 ### Setup
 
